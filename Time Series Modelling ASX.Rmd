@@ -1,0 +1,559 @@
+---
+title: "Time Series Modelling: A Comprehensive Analysis of ASX All Ordinaries, Gold,
+  Crude Oil, and Copper Prices (2004-2017)"
+subtitle: "Nikki Lau"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+# Introduction
+This report focuses on the monthly averages of ASX All Ordinaries (Ords) price index, gold (AUD), crude oil (Brent, USD/bbl), and copper (USD/Tonne) prices from January 2004 to December 2017. The aim of the project is to investigate and analyse the existence of nonstationarity, the impact of the components of the time series data, and to provide the most accurate and suitable distributed lag model for the ASX price index. This will be conducted through descriptive analyses, time series modelling and diagnostic checking. 
+
+# Dataset
+The dataset contains 161 observations with the following 4 variables:
+<li> ASX Price Index </li>
+<li> Gold Price </li>
+<li> Crude Oil Price </li>
+<li> Copper Price </li>
+
+# Method
+```{r}
+#Load all libraries
+library(readr)
+library(tseries)
+library(forecast)
+library(TSA)
+library(x12)
+library(dLagM)
+library(urca)
+```
+
+## Importing Data
+```{r}
+#Load dataset
+asx = read_csv("/Users/nikz/Desktop/ASX_data.csv")
+```
+
+```{r}
+head(asx)
+```
+## Data Pre-processing
+With time series, the dataset needs to be converted to time series objects before implementing time series analysis. Datasets are typically loaded as a matrix which will need to be vectorised to convert into a time series object.
+```{r}
+#Check dataframe structure
+str(asx)
+```
+
+```{r}
+#Vectorise values
+asx_p <- as.vector(asx$`ASX_price`)
+gold_p <- as.vector(asx$`Gold_price`)
+crude_p <- as.vector(asx$`Crude_Oil`)
+copper_p <- as.vector(asx$`Copper`)
+```
+
+```{r}
+#Convert vectors into time series objects
+asx_ts <- ts(asx_p, frequency = 12, start = c(2004,1))
+head(asx_ts)
+gold_ts <- ts(gold_p, frequency = 12, start = c(2004, 1))
+head(gold_ts)
+crude_ts <- ts(crude_p, frequency = 12, start = c(2004, 1))
+head(crude_ts)
+copper_ts <- ts(copper_p, frequency = 12, start = c(2004,1))
+head(copper_ts)
+```
+
+## Visualisation of Time Series
+Time series plots are useful for visualising trends of data across time periods. In this case, through the visualisation of the time series plot, ASX index, gold, crude oil and copper prices can be analysed over the monthly periods from 2004-2017. From these time series plots, the existence of trend, seasonality, changing variance over time, behaviour and intervention are displayed which will assist in analysing the patterns of the time series plots.
+
+### Time Series Plots
+```{r}
+par(mfrow=c(2,2))
+plot(asx_ts, type = 'o', ylab = "Monthly Averages - ASX", xlab = "Year",main = "Monthly Changes in ASX Prices")
+plot(gold_ts, type = 'o', ylab = "Monthly Averages - Gold", xlab = "Year",main = "Monthly Changes in Gold Prices")
+plot(crude_ts, type = 'o', ylab = "Monthly Averages - Crude Oil", xlab = "Year",main = "Monthly Changes in Crude Oil Prices")
+plot(copper_ts, type = 'o', ylab = "Monthly Averages - Copper", xlab = "Year",main = "Monthly Changes in Copper Prices")
+```
+ASX:
+<li>Trend: There is a definite upward trend from 2004 - 2008, with a declining trend in 2008-2009. The trend displays an upward trend again after 2010 </li>
+<li>Seasonality: There is no seasonality present as there are no regular repeating patterns in every month or year </li>
+<li>Intervention: There is an obvious intervention at 2008 </li>
+<li>Changing variance: There is no sign of changing variance </li>
+<li>Behaviour: The data points are related to each other as the previous data point affects the next data points </li>
+<p></p>
+Gold:
+<li>Trend: There is an overall upward, positive trend</li>
+<li>Seasonality: There is no seasonality present as there are no regular repeating patterns in every month or year</li>
+<li>Intervention: There is no sign of an intervention </li>
+<li>Changing variance: There is no sign of changing variance </li>
+<li>Behaviour: The data points are related to each other as the previous data point affects the next data points </li>
+<p></p>
+Crude Oil:
+<li>Trend: There is a definite upward trend from 2004-2008 where it is met with a steep downward trend. The trend increases before plateauing and declining </li>
+<li>Seasonality: There is no seasonality present as there are no regular repeating patterns in every month or year</li>
+<li>Intervention: There is an obvious intervention at 2008 </li>
+<li>Changing variance: There is no sign of changing variance </li>
+<li>Behaviour: The data points are related to each other as the previous data point affects the next data points </li>
+<p></p>
+Copper:
+<li>Trend: There is a definite positive trend which changes over time to a negative trend </li>
+<li>Seasonality: There is no seasonality present as there are no regular repeating patterns in every month or year</li>
+<li>Intervention: There is an obvious intervention at 2008 </li>
+<li>Changing variance: There is no sign of changing variance </li>
+<li>Behaviour: The data points are related to each other as the previous data point affects the next data points </li>
+
+### Scatterplots
+```{r}
+par(mfrow=c(2,2))
+plot(y = asx_ts, x = zlag(asx_ts), 
+     ylab = "Change in ASX Prices",
+     xlab = "Year",
+     main = "Monthly Changes in ASX Prices",
+     cex.main = 1)
+plot(y = gold_ts, x = zlag(gold_ts), 
+     ylab = "Change in Gold Prices",
+     xlab = "Year",
+     main = "Monthly Changes in Gold Prices",
+     cex.main = 1)
+plot(y = crude_ts, x = zlag(crude_ts), 
+     ylab = "Change in Crude Prices",
+     xlab = "Year",
+     main = "Monthly Changes in Crude Prices",
+     cex.main = 1)
+plot(y = copper_ts, x = zlag(copper_ts), 
+     ylab = "Change in Copper Prices",
+     xlab = "Year",
+     main = "Monthly Changes in Copper Prices",
+     cex.main = 1)
+```
+```{r}
+y = asx_ts 
+x = zlag(asx_ts)
+exclude_na = 2:length(x)
+asx_corr = cor(y[exclude_na],x[exclude_na])
+print(paste("ASX Corr:", asx_corr))
+
+y = gold_ts 
+x = zlag(gold_ts)
+exclude_na = 2:length(x)
+gold_corr = cor(y[exclude_na],x[exclude_na])
+print(paste("Gold Corr:", gold_corr))
+
+y = crude_ts 
+x = zlag(crude_ts)
+exclude_na = 2:length(x)
+crude_corr = cor(y[exclude_na],x[exclude_na])
+print(paste("Crude Corr:", crude_corr))
+
+y = copper_ts 
+x = zlag(copper_ts)
+exclude_na = 2:length(x)
+copper_corr = cor(y[exclude_na],x[exclude_na])
+print(paste("Copper Corr:", copper_corr))
+
+
+```
+The scatterplots for ASX, gold, crude and copper prices all show a strong, linear, positive trend. The correlation values (0.9741, 0.9914, 0.9778, 0.9723), respectively, further indicates a strong correlation between the values of consecutive monthly ASX, gold, crude or copper prices. This indicates that there is a strong correlation between consecutive ASX prices, and therefore, the prices of ASX of one month impacts the ASX price of the next month. This is the same for gold, crude oil and copper prices. 
+
+## Residual Analysis
+### ACF and PACF
+```{r}
+#ACF and PACF
+par(mfrow=c(2,2))
+acf(asx_ts, lag.max = 24, main = "ACF of avg monthly ASX price")
+pacf(asx_ts, lag.max = 24, main = "PACF of avg monthly ASX price")
+
+acf(gold_ts, lag.max = 24, main = "ACF of avg monthly Gold price")
+pacf(gold_ts, lag.max = 24, main = "PACF of avg monthly Gold price")
+```
+ASX Price:
+From the ACF plot, as the lags are not within the boundary lines, it supports that there is an existence of a trend in the series. Furthermore, with a very high first autocorrelation seen in the PACF plot, the series is considered as nonstationary. 
+
+Gold Price:
+From the ACF plot, as the lags are not within the boundary lines, it supports that there is an existence of a trend in the series. Furthermore, with a very high first autocorrelation seen in the PACF plot, the series is considered as nonstationary. 
+```{r}
+par(mfrow=c(2,2))
+acf(crude_ts, lag.max = 24, main = "ACF of avg monthly Crude oil price")
+pacf(crude_ts, lag.max = 24, main = "PACF of avg monthly Crude oil price")
+
+acf(copper_ts, lag.max = 24, main = "ACF of avg monthly Copper price")
+pacf(copper_ts, lag.max = 24, main = "PACF of avg monthly Copper price")
+```
+Crude Oil Price:
+From the ACF plot, as the lags are not within the boundary lines, it supports that there is an existence of a trend in the series. Furthermore, with a very high first autocorrelation seen in the PACF plot, the series is considered as nonstationary. 
+
+Copper Price:
+From the ACF plot, as the lags are not within the boundary lines, it supports that there is an existence of a trend in the series. Furthermore, with a very high first autocorrelation seen in the PACF plot, the series is considered as nonstationary. 
+
+### Unit Root Tests
+In order to further confirm whether the series are stationary or nonstationary, unit root test statistics can be conducted. However in order to perform unit root tests, the lag length of each series needs to be determined to specify the regression model that will be used for testing. After selecting the lag length, various unit root test statistics can be performed.
+```{r}
+k_asx = ar(diff(asx_ts))$order
+k_asx
+
+k_gold = ar(diff(gold_ts))$order
+k_gold
+
+k_crude = ar(diff(crude_ts))$order
+k_crude
+
+k_copper = ar(diff(copper_ts))$order
+k_copper
+```
+```{r}
+adf.test(asx_ts, k = k_asx)
+adf.test(asx_ts, k = k_gold)
+adf.test(asx_ts, k = k_crude)
+adf.test(asx_ts, k = k_copper)
+```
+
+```{r}
+PP.test(asx_ts, lshort = TRUE)
+PP.test(gold_ts, lshort = TRUE)
+PP.test(crude_ts, lshort = TRUE)
+PP.test(copper_ts, lshort = TRUE)
+```
+The lag lengths for the asx, gold, crude oil and copper price series were determined to be 0, 2, 1 and 1, respectively. From these lag lengths, the augmented dickey-fuller test (ADF) were performed for each series, where the null and alternative hypotheses are as follows:
+
+<li> Null hypothesis: There is a unit root </li>
+<li> Alternative hypothesis: There is stationarity </li>
+
+Based on the ADF test results for ASX, gold, crude oil and copper prices indicates nonstationarity at a 5% level of significance as p > 0.05. 
+
+Furthermore, the Phillips-Perron (PP) test was performed to further confirm that stationarity of the series. According to the PP test, the series are nonstationary at a 5% level of significance as p > 0.05. 
+
+```{r}
+shapiro.test(asx_ts)
+shapiro.test(gold_ts)
+shapiro.test(crude_ts)
+shapiro.test(copper_ts)
+```
+The shapiro-wilk test shows that the normality of residuals are supported for ASX, gold, crude, copper prices, at a 5% level of significance as p > 0.05. 
+
+## Transformation
+```{r}
+#Lambda values
+asx_lambda = BoxCox.lambda(asx_ts)
+gold_lambda = BoxCox.lambda(gold_ts)
+crude_lambda = BoxCox.lambda(crude_ts)
+copper_lambda = BoxCox.lambda(copper_ts)
+cbind(asx_lambda, gold_lambda, crude_lambda, copper_lambda)
+```
+```{r}
+#ASX transformation
+asx.bc = ((asx_ts^(asx_lambda)) - 1) / asx_lambda
+plot(asx.bc, ylab = "ASX Price", xlab = "Year", type = 'o', main = "Box-Cox Transformed ASX Price Series")
+```
+```{r}
+#Crude oil transformation
+crude.bc = ((crude_ts^(crude_lambda)) - 1) / crude_lambda
+plot(crude.bc, ylab = "Crude Oil Price", xlab = "Year", type = 'o', main = "Box-Cox Transformed Crude Oil Price Series")
+```
+From the lambda values, it shows that for ASX price index, the lambda value is close to 2, hence a transformation is required. In addition, as the lambda value for crude oil price is negative, a transformation is also required. For the others, gold and copper prices, as their lambda values are close to 1, no transformation is required. 
+
+As the lambda value for ASX price index is close to 2, a (Y^2) transformation was used, while a (Y^-1) transformation was used for crude oil due to its negative lambda value. A time series plot for ASX price index and crude oil prices were used to visualise the effects of the transformation. As the time series plot appear to be identical to the original time series plot for ASX price index and crude oil price, and hence still appear nonstationary, the transformations were not applied to the series.
+
+## Differencing
+```{r}
+asx_diff = diff(asx_ts)
+gold_diff = diff(gold_ts)
+crude_diff = diff(crude_ts)
+copper_diff = diff(copper_ts)
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(asx_diff, ylab = "ASX Prices", xlab = "Time", main = "First Difference of ASX Prices")
+plot(gold_diff, ylab = "Gold Prices", xlab = "Time", main = "First Difference of Gold Prices")
+plot(crude_diff, ylab = "Crude Oil Prices", xlab = "Time", main = "First Difference of Crude Oil Prices")
+plot(copper_diff, ylab = "Copper Prices", xlab = "Time", main = "First Difference of Copper Prices")
+```
+```{r}
+adf.test(asx_diff)
+adf.test(gold_diff)
+adf.test(crude_diff)
+adf.test(copper_diff)
+```
+
+```{r}
+PP.test(asx_diff, lshort = TRUE)
+PP.test(gold_diff, lshort = TRUE)
+PP.test(crude_diff, lshort = TRUE)
+PP.test(copper_diff, lshort = TRUE)
+```
+
+As the series appear to be non-stationary, the series will be differenced and the stationarity of the series will be observed again. 
+
+After first differencing the series, the series appear stationary. This was confirmed with the unit root tests. 
+
+From the ADF test, it confirms that the series is now stationary at 5% level of significance after first differencing as p < 0.05.
+
+The stationarity of the series are further confirmed through the PP tests, where the series are stationary at 5% level of significance as p < 0.05. 
+
+## Decomposition
+### ASX Price Series
+```{r}
+asx_decomp = x12(asx_ts)
+plot(asx_decomp, sa = TRUE, trend = TRUE, forecast = TRUE)
+```
+```{r}
+plotSeasFac(asx_decomp)
+```
+```{r}
+fit.asx <- stl(asx_ts, t.window = 15, s.window = "periodic", robust = TRUE)
+plot(fit.asx)
+```
+<li> From the x-12 decomposition, it is observed that the pattern of the seasonally adjusted series follows the original series closely, however there are slight deviations of a seasonal effect. There is also minor deviations from the original series, which displays that it has an effect on the series. Furthermore, the forecast reveals that the seasonally adjusted series follows the original series </li>
+<li> From the seasonal factors plot, the seasonal factors are diverting from the mean level from January to December</li>
+<li> The STL decomposition plot displays a trend that follows the overall pattern of the original series - that is, an upward trend, followed by a decline and a gradual upward trend again. </li>
+
+### Gold Price Series
+```{r}
+gold_decomp = x12(gold_ts)
+plot(gold_decomp, sa = TRUE, trend = TRUE, forecast = TRUE)
+```
+```{r}
+plotSeasFac(asx_decomp)
+```
+```{r}
+fit.gold <- stl(gold_ts, t.window = 15, s.window = "periodic", robust = TRUE)
+plot(fit.gold)
+```
+<li> From the x-12 decomposition, it is observed that the pattern of the seasonally adjusted series follows the original series closely, however there are slight deviations. Furthermore, the forecast reveals that the series is to remain constant in the future years </li>
+<li> From the seasonal factors plot, the seasonal factors are diverting from the mean level from January to December </li>
+<li> The STL decomposition plot displays a trend that follows the overall pattern of the original series - that is, an upward trend </li>
+
+### Crude Oil Series
+```{r}
+crude_decomp = x12(crude_ts)
+plot(crude_decomp, sa = TRUE, trend = TRUE, forecast = TRUE)
+```
+```{r}
+plotSeasFac(crude_decomp)
+```
+```{r}
+fit.crude <- stl(crude_ts, t.window = 15, s.window = "periodic", robust = TRUE)
+plot(fit.crude)
+```
+<li> From the x-12 decomposition, it is observed that the pattern of the seasonally adjusted series follows the original series closely from 2004-2006. After 2006, there are significant deviations from the original series from 2006-2011. However, after 2011, the series follow the original series and the forecast reveals that the series is to remain constant in the future years </li>
+<li> From the seasonal factors plot, the seasonal factors are diverting from the mean level from January to December </li>
+<li> The STL decomposition plot displays a trend that follows the overall pattern of the original series. The intervention points are also clearly depicted in 2008-2010. Furthermore, the plot shows variation in seasonality. </li>
+
+### Copper Price Series
+```{r}
+copper_decomp = x12(copper_ts)
+plot(copper_decomp, sa = TRUE, trend = TRUE, forecast = TRUE)
+```
+```{r}
+plotSeasFac(copper_decomp)
+```
+```{r}
+fit.copper <- stl(copper_ts, t.window = 15, s.window = "periodic", robust = TRUE)
+plot(fit.copper)
+```
+<li> From the x-12 decomposition, it is observed that the pattern of the seasonally adjusted series follows the original series closely throughout. The forecast reveals that the series is to remain constant in the future years </li>
+<li> As there is not much change in the seasonality, the seasonal factors are surrounding the mean. </li>
+<li> The STL decomposition plot displays a trend that follows the overall pattern of the original series. The intervention points are also clearly depicted in 2007-2009. </li>
+
+## Model Fitting
+```{r}
+asx_bind <- cbind(asx_ts, gold_ts, crude_ts, copper_ts)
+
+cor(asx_bind)
+```
+A correlation test is performed to evaluate the correlation between the variables. As the ASX price index is considered the dependent variable, Y, the other variables, gold price, crude oil price and copper price, will be the independent variables, X. From the correlation test, ASX price index and copper show the strongest correlation (0.5618) compared to the other variables. The variable with the least correlation to ASX price index is crude oil price (0.3290). 
+
+In order to determine the most suitable model for the series, multiple lag models such as finite, polynomial, koyk and auto-regressive distributed lag model, were performed and evaluated for all independent variables (gold price, crude oil price and copper price) to dependent variable (ASX price index).
+
+### ASX Price Index and Gold Prices
+```{r}
+#Finite lag model - ASX & Gold
+model1_gold = dlm( x = as.vector(gold_ts), y = as.vector(asx_ts), q = 9)
+summary(model1_gold)
+```
+```{r}
+checkresiduals(model1_gold$model)
+```
+```{r}
+# Finite lag length based on AIC and BIC values
+for (i in 1:10) { 
+        model1.gold = dlm(x = as.vector(gold_ts), y = as.vector(asx_ts), q = i)
+        cat("q = ", i, "AIC = ", AIC(model1.gold$model), "BIC = ", BIC(model1.gold$model), "\n")
+        }
+```
+From the finite lag model for ASX price index and gold price, all the coefficients are insignificant (p > 0.05) and the adjusted R-square value is -0.008 which indicates that additional predictors will not improve the model. Furthermore, the model is insignificant at 5% level of significance with a p-value of 0.5654. For the Breusch-Godfrey test, the null hypothesis and alternative hypothesis are as follows:
+<li> Null hypothesis: There is no autocorrelation at some order less than or equal to p </li>
+<li> Alternative hypothesis: There is autocorrelation at some order less than or equal to p </li> 
+Based on the Breusch-Godfrey test, it shows that as the p-value is less than 0.05, we can reject the null hypothesis and conclude that autocorrelation exists among the residuals at some order less than or equal to 14. This is further confirmed by the ACF plot. Based on the time series and histogram of standardised residuals, there are very high residual values that violate general assumptions. In addition, both the AIC and BIC values suggest the use of lag length 10 as it has the lowest AIC and BIC values. From these results, it shows that the model does not fit the data well. 
+
+```{r}
+#Polynomial lag model - Gold & ASX
+model2_gold = polyDlm(x = as.vector(gold_ts), y = as.vector(asx_ts), q = 2, k = 2, show.beta = TRUE)
+summary(model2_gold)
+```
+```{r}
+checkresiduals(model2_gold$model)
+```
+From the polynomial lag model for ASX price index and gold price, all the coefficients are insignificant (p > 0.05) and the adjusted R-square value is 0.084 which indicates that additional predictors will not improve the model. However, the model is significant at 5% level of significance with a p-value of 0.00083. Based on the Breusch-Godfrey test, it shows that as the p-value is less than 0.05, we can reject the null hypothesis and conclude that autocorrelation exists among the residuals at some order less than or equal to 10. This is further confirmed by the ACF plot. Based on the time series and histogram of standardised residuals, there are very high residual values that violate general assumptions and observe non-random patterns observed. From these results, it shows that the model does not fit the data well. 
+
+```{r}
+#Koyk lag model - Gold & ASX
+model3_gold = koyckDlm(x = as.vector(gold_ts), y = as.vector(asx_ts))
+summary(model3_gold)
+```
+```{r}
+checkresiduals(model3_gold$model)
+```
+From the koyck lag model for ASX price index and gold price, some of the coefficients is significant (p < 0.05) and the adjusted R-square value is 0.9481 which indicates that additional predictors will improve the model. Furthermore, the model is significant at 5% level of significance with a p-value less than 0.05. The ACF plot shows that there are no significant correlations as all the lags are well within the reference boundary lines. Based on the time series, there is no consistent upward or downward trend and the histogram of standardised residuals displays a left-skewed distributed. From these results, it shows that the model does fit the data well. 
+
+```{r}
+#Autoregressive distributed lag model - Gold & ASX
+model4_gold = ardlDlm(x = as.vector(gold_ts), y = as.vector(asx_ts))
+summary(model4_gold)
+```
+```{r}
+checkresiduals(model4_gold$model)
+```
+```{r}
+for (i in 1:5) {
+        for (j in 1:5) {
+                model4.gold = ardlDlm(x = as.vector(gold_ts), y = as.vector(asx_ts), p = i, q = j)
+                cat("p = ", i, "q = ", j, "AIC = ", AIC(model4.gold$model), "BIC = ", BIC(model4.gold$model),"\n")
+        }
+}
+```
+
+From the autoregressive distributed lag model for ASX price index and gold price, all the coefficients are significant (p < 0.05) and the adjusted R-square value is 0.9533 which indicates that additional predictors will improve the model. Furthermore, the model is significant at 5% level of significance with a p-value less than 0.05. Based on the Breusch-Godfrey test, it shows that as the p-value is greater than 0.05, we cannot reject the null hypothesis and conclude that autocorrelation does not exist among the residuals at some order less than or equal to 10. This is further confirmed by the ACF plot which shows that there are no significant correlations as all the lags are within the reference boundary lines. Based on the time series, there is no consistent upward or downward trend and the histogram of standardised residuals displays an approximate normal distribution. In addition, p = 1 and q = 5 gives the smallest AIC and BIC values. From these results, it shows that the model does fit the data well. 
+
+### ASX Price Index & Crude Oil Price
+```{r}
+#Finite Lag Model
+model1_crude = dlm(x = as.vector(crude_ts), y = as.vector(asx_ts), q = 9)
+summary(model1_crude)
+```
+```{r}
+checkresiduals(model1_crude$model)
+```
+```{r}
+# Finite lag length based on AIC and BIC values
+for (i in 1:10) { 
+        model1.crude = dlm(x = as.vector(crude_ts), y = as.vector(asx_ts), q = i)
+        cat("q = ", i, "AIC = ", AIC(model1.crude$model), "BIC = ", BIC(model1.crude$model), "\n")
+        }
+```
+
+From the finite lag model for ASX price index and crude oil price, all the coefficients are insignificant (p > 0.05) and the adjusted R-square value is -0.008 which indicates that additional predictors will not improve the model. Furthermore, the model is insignificant at 5% level of significance with a p-value of 0.5551. Based on the Breusch-Godfrey test, it shows that as the p-value is less than 0.05, we can reject the null hypothesis and conclude that autocorrelation exists among the residuals at some order less than or equal to 14. This is further confirmed by the ACF plot. Based on the time series and histogram of standardised residuals, there are very high residual values that violate general assumptions. In addition, both the AIC and BIC values suggest the use of lag length 10 as it has the lowest AIC and BIC values. From these results, it shows that the model does not fit the data well. 
+
+```{r}
+#Polynomial Lag Model
+model2_crude = polyDlm(x = as.vector(crude_ts) , y = as.vector(asx_ts) , q = 2 , k = 2 , show.beta = TRUE)
+summary(model2_crude)
+```
+```{r}
+checkresiduals(model2_crude$model)
+```
+From the polynomial lag model for ASX price index and crude oil price, all the coefficients are insignificant (p > 0.05) and the adjusted R-square value is 0.0816 which indicates that additional predictors will not improve the model. However, the model is significant at 5% level of significance with a p-value of 0.001. Based on the Breusch-Godfrey test, it shows that as the p-value is less than 0.05, we can reject the null hypothesis and conclude that autocorrelation exists among the residuals at some order less than or equal to 10. This is further confirmed by the ACF plot as the lags are over the boundary lines. Based on the time series and histogram of standardised residuals, there are no consistent upward and downward trend and non-random patterns are observed. From these results, it shows that the model does not fit the data well. 
+
+```{r}
+#Koyk Lag Model
+model3_crude = koyckDlm(x = as.vector(crude_ts) , y = as.vector(asx_ts))
+summary(model3_crude)
+```
+
+```{r}
+checkresiduals(model3_crude$model)
+```
+From the koyck lag model for ASX price index and crude oil price, some of the coefficients is significant (p < 0.05) and the adjusted R-square value is 0.9483 which indicates that additional predictors will improve the model. Furthermore, the model is significant at 5% level of significance with a p-value less than 0.05. The ACF plot shows that there are no significant correlations as all the lags are well within the reference boundary lines. Based on the time series, there is no consistent upward or downward trend and the histogram of standardised residuals displays a left-skewed distributed with an approximate normal distribution and presence of outliers. From these results, it shows that the model does fit the data well. 
+
+```{r}
+#Autoregressive distributed model 
+model4_crude = ardlDlm(x = as.vector(crude_ts) , y = as.vector(asx_ts))
+summary(model4_crude)
+```
+```{r}
+checkresiduals(model4_crude$model)
+```
+```{r}
+for (i in 1:5) {
+        for (j in 1:5) {
+                model4.crude = ardlDlm(x = as.vector(crude_ts), y = as.vector(asx_ts), p = i, q = j)
+                cat("p = ", i, "q = ", j, "AIC = ", AIC(model4.crude$model), "BIC = ", BIC(model4.crude$model),"\n")
+        }
+}
+```
+From the autoregressive distributed lag model for ASX price index and crude oil price, all the coefficients are significant (p < 0.05) and the adjusted R-square value is 0.9516 which indicates that additional predictors will improve the model. Furthermore, the model is significant at 5% level of significance with a p-value less than 0.05. Based on the Breusch-Godfrey test, it shows that as the p-value is greater than 0.05, we cannot reject the null hypothesis and conclude that autocorrelation does not exist among the residuals at some order less than or equal to 10. This is further confirmed by the ACF plot which shows that there are no significant correlations as all the lags are within the reference boundary lines. Based on the time series, there is no consistent upward or downward trend and the histogram of standardised residuals displays an approximate normal distribution. In addition, p = 5 and q = 1 gives the smallest AIC and BIC values. From these results, it shows that the model does fit the data well.
+
+### ASX Price Index & Copper Price
+```{r}
+#Finite Lag Model
+model1_copper = dlm( x = as.vector(copper_ts) , y = as.vector(asx_ts), q = 9 )
+summary(model1_copper)
+```
+```{r}
+checkresiduals(model1_copper$model)
+```
+```{r}
+# Finite lag length based on AIC and BIC values
+for (i in 1:10) { 
+        model1.copper = dlm(x = as.vector(copper_ts), y = as.vector(asx_ts), q = i)
+        cat("q = ", i, "AIC = ", AIC(model1.copper$model), "BIC = ", BIC(model1.copper$model), "\n")
+        }
+```
+
+From the finite lag model for ASX price index and copper price, all the coefficients are insignificant (p > 0.05) and the adjusted R-square value is 0.1496 which indicates that additional predictors will not improve the model. However, the model is significant at 5% level of significance with a p-value of 0.0002. Based on the Breusch-Godfrey test, it shows that as the p-value is less than 0.05, we can reject the null hypothesis and conclude that autocorrelation exists among the residuals at some order less than or equal to 14. This is further confirmed by the ACF plot as the lags are not within the boundary lines. Based on the time series and histogram of standardised residuals, there are very high residual values that violate general assumptions. In addition, both the AIC and BIC values suggest the use of lag length 10 as it has the lowest AIC and BIC values. From these results, it shows that the model does not fit the data well. 
+
+```{r}
+#Polynomial Lag Model
+model2_copper = polyDlm(x = as.vector(copper_ts) , y = as.vector(asx_ts) , q = 2 , k = 2 , show.beta = TRUE)
+summary(model2_copper)
+```
+```{r}
+checkresiduals(model2_copper$model)
+```
+From the polynomial lag model for ASX price index and copper price, all the coefficients are insignificant (p > 0.05) and the adjusted R-square value is 0.274 which indicates that additional predictors will improve the model. However, the model is significant at 5% level of significance with a p-value less than 0.05. Based on the Breusch-Godfrey test, it shows that as the p-value is less than 0.05, we can reject the null hypothesis and conclude that autocorrelation exists among the residuals at some order less than or equal to 10. This is further confirmed by the ACF plot as the lags are over the boundary lines. Based on the time series and histogram of standardised residuals, there are no consistent upward and downward trend and non-random patterns are observed. From these results, it shows that the model does not fit the data well. 
+
+```{r}
+# Koyk Lag Model
+model3_copper = koyckDlm(x = as.vector(copper_ts) , y = as.vector(asx_ts))
+summary(model3_copper)
+```
+
+```{r}
+checkresiduals(model3_copper$model)
+```
+From the koyck lag model for ASX price index and copper price, some of the coefficients is significant (p < 0.05) and the adjusted R-square value is 0.9479 which indicates that additional predictors will improve the model. Furthermore, the model is significant at 5% level of significance with a p-value less than 0.05. The ACF plot shows that there are no significant correlations as all the lags are well within the reference boundary lines. Based on the time series, there is no consistent upward or downward trend and the histogram of standardised residuals displays a left-skewed distributed with an approximate normal distribution and presence of outliers. From these results, it shows that the model does fit the data well. 
+
+```{r}
+# Autoregressive Distributed Lag Model
+model4_copper = ardlDlm(x = as.vector(copper_ts) , y = as.vector(asx_ts), p = 1 , q = 1 )
+summary(model4_copper)
+```
+```{r}
+checkresiduals(model4_copper$model)
+```
+```{r}
+for (i in 1:5) {
+        for (j in 1:5) {
+                model4.copper = ardlDlm(x = as.vector(copper_ts), y = as.vector(asx_ts), p = i, q = j)
+                cat("p = ", i, "q = ", j, "AIC = ", AIC(model4.copper$model), "BIC = ", BIC(model4.copper$model),"\n")
+        }
+}
+```
+
+From the autoregressive distributed lag model for ASX price index and copper price, all the coefficients are significant (p < 0.05) and the adjusted R-square value is 0.9513 which indicates that additional predictors will improve the model. Furthermore, the model is significant at 5% level of significance with a p-value less than 0.05. Based on the Breusch-Godfrey test, it shows that as the p-value is greater than 0.05, we cannot reject the null hypothesis and conclude that autocorrelation does not exist among the residuals at some order less than or equal to 10. This is further confirmed by the ACF plot which shows that there are no significant correlations as all the lags are within the reference boundary lines. Based on the time series, there is no consistent upward or downward trend and the histogram of standardised residuals displays an approximate normal distribution. In addition, p = 5 and q = 2 gives the smallest AIC and BIC values. From these results, it shows that the model does fit the data well. 
+
+# Discussion/Conclusion
+The monthly averages of ASX All Ordinaries (Ords) price index, gold (AUD), crude oil (Brent, USD/bbl), and copper (USD/Tonne) prices from January 2004 to December 2017. The trend of these variables throughout the time period were evaluated through time series and scatterplots. From the time series plots, overall, there are upward and downward trends with no presence of seasonality. Based on the scatterplots, all the series display a strong, linear, positive trend which is further confirmed by the high correlation values. 
+
+The stationarity of the series are analysed through ACF and PACF plots which displays that as the lags are not within the boundary in the ACF plots, there is an existence of a trend in the series. This is further confirmed by the PACF plots where a very high first autocorrelation is seen. The ACF and PACF plots can conclude that the series for ASX price index, gold, crude oil and copper prices are nonstationary. Further testing such as two unit root test statistics were used to confirm the presence of nonstationarity in the series. Based on the ADF and PP tests, they both confirm that the series are all nonstationary. Furthermore, Shapiro-Wilk test was performed to analyse the normality of the residuals and the results show that the normality of residuals are supported for the series. 
+
+In order to evaluate the necessity of transforming the series, the lambda values for each series were determined. From these lambda values, it shows that only two series required transformation, ASX price index and crude oil price, as the lambda value is close to 2 and -1, respectively. The appropriate transformation technique were applied to the series and coupled with a time series plot to display the transformation, the trend of the series remain the same as the original series. Due to this, the transformation of the series were not applied to both ASX price index and crude oil price. 
+
+As the series are non-stationary, first differencing was applied to each of the series to transform the stationarity of the series. After applying first differencing, the time series plot display a more stationary trend, however this was further confirmed by unit root test statistics such as ADF and PP tests. From these two tests, it shows that the series are stationary after first differencing. 
+
+Decomposition of the series were performed to further analyse the trend and seasonal factors of the time series. This will improve understanding of the series as well as forecasting accuracy. The results from the decompositon show that the pattern of the seasonally adjusted series follows the original series closely however there are slight deviations of a seasonal effect. 
+
+Multiple distributed lag models were used to determine the best fitted model for the series, where the dependent variable, Y, is ASX price index, and the independent variables, X, are gold, crude oil and copper prices. Such distributed lag models include definite, polynomial, koyk and auto-regressive distributed lag model. Diagnostic checks are performed after the fitting of the model to determine the suitability of each model to the series. Comparing all the different models utilised, the worst model for each series is the finite distributed lag model. This is due to the lack of significant coefficients found in the model, the significantly low adjusted R-squared value,  and the high p-value of the model (p > 0.05) indicates that the model is a poor fit for the series. Furthermore, the diagnostic checks confirms that autocorrelation exists as the p-value is less than 0.05 in the Breusch-Godfrey test and the lags are out of the boundary lines in the ACF plot. The time series of standardised residuals display an overall upward trend and the histogram of standardised residuals violates general assumptions. Based on these results, it can be concluded that the definite distributed lag model is the worst model for the series. On the other hand, the best model for the series appear to be the auto-regressive distributed lag model. Based on the results of this model, most of the coefficients are significant (p < 0.05), and the model has a significantly high adjusted R-squared value, followed by a significantly low p-value (p < 0.05), which indicates the significant suitability of the model for the series. Furthermore, from the diagnostics checks, the high Breusch-Godfrey test indicates that there is no autocorrelation present in the series and this is confirmed by the ACF plot where the lags are well within the boundary lines. From the time series plot of the standardised residuals, there are no definite upward and downward trend and the histogram of standardised residuals appear approximately normally distributed. Based on these results, it can be said that the best performing model for the series is the auto-regressive distributed model. 
